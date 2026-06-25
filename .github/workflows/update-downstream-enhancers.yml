@@ -1,0 +1,82 @@
+name: Broadcast Template Updates
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'java-project/**'
+      - 'copier.yml'
+      # Negate the specific business logic packages so they don't trigger the workflow
+      - '!java-project/src/main/java/org/jboss/sbomer/enhancer/core/service/**'
+      - '!java-project/src/test/java/org/jboss/sbomer/enhancer/core/service/**'
+
+jobs:
+  update-fleet:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Template Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python, yq & Copier
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - run: |
+          pip install copier
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod a+x /usr/local/bin/yq
+
+      - name: Read Downstream Enhancers
+        id: read-repos
+        run: |
+          # Parse the YAML array into a space-separated string
+          REPOS=$(yq eval '.enhancers | join(" ")' downstream-enhancers.yaml)
+          echo "repos=$REPOS" >> $GITHUB_OUTPUT
+
+      - name: Update Downstream Repositories
+        env:
+          GH_TOKEN: ${{ secrets.MACHINE_USER_PAT }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Iterate through each repository defined in the yaml
+          for REPO in ${{ steps.read-repos.outputs.repos }}; do
+            echo "🔄 Updating downstream repository: $REPO"
+          
+            # 1. Clone the downstream repo
+            git clone https://${GH_TOKEN}@github.com/${REPO}.git downstream-repo
+            cd downstream-repo
+          
+            # 2. Create a new branch
+            BRANCH_NAME="chore/copier-template-update-${GITHUB_SHA::7}"
+            git checkout -b $BRANCH_NAME
+          
+            # 3. Run Copier Update
+            # Copier reads its previous answers/source URL from .copier-answers.yml
+            # --trust is required to execute local scripts, --skip-answered prevents hanging prompts
+            copier update --trust --skip-answered
+          
+            # 4. Check if there are actually changes to commit
+            if [ -n "$(git status --porcelain)" ]; then
+              git add .
+              git commit -m "chore: sync upstream template changes from ${GITHUB_SHA::7}"
+              git push origin $BRANCH_NAME
+          
+              gh pr create \
+                --repo $REPO \
+                --title "🔄 Update from Upstream Copier Template" \
+                --body "Automated PR bringing in structural/architectural updates from the central template repository. Please review merge conflicts (if any)." \
+                --base main \
+                --head $BRANCH_NAME
+          
+              echo "✅ PR created for $REPO"
+            else
+              echo "⏭️ No changes detected for $REPO, skipping PR."
+            fi
+          
+            # Clean up for the next loop iteration
+            cd ..
+            rm -rf downstream-repo
+          done

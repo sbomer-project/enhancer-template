@@ -1,0 +1,16 @@
+# Tell Copier where the blueprint lives
+_subdirectory: template
+
+# Tell Copier to parse ALL text files without requiring a '.tmpl' suffix
+_templates_suffix: ""
+
+# Question 1: The human-readable name
+project_name:
+  type: str
+  help: "What is the name of this component?"
+  default: "My Enhancer"
+
+# Question 2: The machine-readable name (folder name, package name)
+project_slug:
+  type: str
+  default: "{{ project_name | lower | replace(' ', '-') }}"

@@ -1,0 +1,68 @@
+name: Generate New Enhancer
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_repository:
+        description: 'Target GitHub Repository (e.g., sbomer-project/new-enhancer)'
+        required: true
+      project_name:
+        description: 'Human-readable name (e.g., SBOM Enhancer)'
+        required: true
+      project_slug:
+        description: 'Machine-readable slug (e.g., sbom-enhancer)'
+        required: true
+
+jobs:
+  generate-and-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Template Repository
+        uses: actions/checkout@v4
+        with:
+          path: template-repo
+
+      - name: Set up Python & Copier
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - run: pip install copier
+
+      - name: Checkout Target Repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.inputs.target_repository }}
+          token: ${{ secrets.MACHINE_USER_PAT }}
+          path: target-repo
+
+      - name: Run Generation Script
+        working-directory: template-repo
+        run: ./generate-template.sh
+
+      - name: Run Copier
+        run: |
+          # Use the newly generated template folder as the source
+          copier copy ./template-repo/generated_template ./target-repo \
+            -d project_name="${{ github.event.inputs.project_name }}" \
+            -d project_slug="${{ github.event.inputs.project_slug }}" \
+            --trust
+
+      - name: Create Pull Request in Target Repo
+        working-directory: target-repo
+        env:
+          GH_TOKEN: ${{ secrets.MACHINE_USER_PAT }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          BRANCH_NAME="feature/initial-copier-generation"
+          git checkout -b $BRANCH_NAME
+          git add .
+          git commit -m "chore: initial project generation via Copier template"
+          git push origin $BRANCH_NAME
+          
+          gh pr create \
+            --title "🚀 Initial Project Generation" \
+            --body "This PR contains the newly generated microservice code from the SBOMer Enhancer template." \
+            --base main \
+            --head $BRANCH_NAME
