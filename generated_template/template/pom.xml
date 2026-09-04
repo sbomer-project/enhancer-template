@@ -20,7 +20,7 @@
         <quarkus.platform.version>3.28.2</quarkus.platform.version>
         <logback.version>1.5.6</logback.version>
         <skipITs>true</skipITs>
-        <surefire-plugin.version>3.5.4</surefire-plugin.version>
+        <surefire-plugin.version>3.6.0</surefire-plugin.version>
         <maven-enforcer-plugin.version>3.6.2</maven-enforcer-plugin.version>
         <version.cyclonedx>9.1.0-patch</version.cyclonedx>
     </properties>
