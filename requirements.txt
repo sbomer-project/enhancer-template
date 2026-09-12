@@ -12,7 +12,7 @@ platformdirs==4.10.0
 plumbum==2.0.1
 prompt_toolkit==3.0.52
 pydantic==2.13.4
-pydantic_core==2.46.4
+pydantic_core==2.49.0
 Pygments==2.20.0
 PyYAML==6.0.3
 questionary==2.1.1
